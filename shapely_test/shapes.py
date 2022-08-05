@@ -103,7 +103,7 @@ class RandomPolyGenerator(abc.ABC):
             for confidence, geom in polygons
         ]
 
-    def _snap_to_integers(self, polygons: List[Tuple[float, GenericPoly]]) -> List[Tuple[float, GenericPoly]]:
+    def _snap_to_integers(self, polygons: List[Tuple[str, float, GenericPoly]]) -> List[Tuple[str, float, GenericPoly]]:
         return [(uid, confidence, snap_to_integers(geom)) for uid, confidence, geom in polygons]
 
     def _clip_by_confidence(self, polygons: List[Tuple[float, GenericPoly]]) -> List[Tuple[str, float, GenericPoly]]:
