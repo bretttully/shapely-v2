@@ -1,0 +1,17 @@
+name: shapely-v2
+channels:
+  - conda-forge/label/shapely_dev
+  - conda-forge
+  - defaults
+  - main
+dependencies:
+  - python 3.10.*
+  - black >=22.6
+  - isort >=5.10
+  - ipython >=8.4
+  - jupyter >=1.0
+  - typer >=0.6
+  - matplotlib >=3.5
+  - geos >=3.11
+  - shapely 2.0a1
+  - geopandas >=0.11

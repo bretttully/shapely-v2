@@ -1,0 +1,52 @@
+{
+    "python.defaultInterpreterPath": "~/mambaforge/envs/shapely-v2/bin/python",
+    "editor.rulers": [
+        120
+    ],
+    "git.autofetch": true,
+    "git.untrackedChanges": "separate",
+    "python.linting.enabled": false,
+    "python.linting.pylintEnabled": false,
+    "python.linting.pylintArgs": [
+        "--rcfile=.conda/.pylintrc"
+    ],
+    "python.linting.flake8Enabled": false,
+    "editor.formatOnSave": true,
+    "editor.formatOnPaste": false,
+    "[python]": {
+        "editor.formatOnPaste": false,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": true
+        }
+    },
+    "python.formatting.provider": "black",
+    "python.formatting.blackArgs": [
+        "--line-length",
+        "120"
+    ],
+    "python.sortImports.args": [
+        "--multi-line=3",
+        "--trailing-comma",
+        "--force-grid-wrap=0",
+        "--use-parentheses",
+        "--line-width=120",
+        "--section-default=THIRDPARTY",
+        "--project=shapely_test",
+        "--force-sort-within-sections"
+    ],
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestArgs": [
+        "tests"
+    ],
+    "files.watcherExclude": {
+        "**/__pycache__": true,
+        "**/*.egg-info": true,
+        "realestate/cache-dir": true
+    },
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/*.egg-info": true,
+        "realestate/cache-dir": true
+    }
+}
