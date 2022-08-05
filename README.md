@@ -20,7 +20,7 @@ In each of those env, we can then run some tests. For example, in the v2 env we 
 conda activate shapely-v2
 python setup.py develop
 shapely_test --help
-shapely_test "v2" targets -j 2 -n 4
+shapely_test v2 random_radius_targets -j 2 -n 4
 ```
 
 To switch to the other env, first `conda deactivate` and then run:
@@ -29,5 +29,5 @@ To switch to the other env, first `conda deactivate` and then run:
 conda activate shapely-v1
 python setup.py develop
 shapely_test --help
-shapely_test "v1" targets -j 2 -n 4
+shapely_test v1 random_radius_targets -j 2 -n 4
 ```

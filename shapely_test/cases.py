@@ -4,10 +4,10 @@ import os
 from pprint import pprint
 import time
 from typing import Dict
-import shapely
 
 import geopandas as gpd
 import pandas as pd
+import shapely
 
 from shapely_test.shapes import RandomPolyGenerator
 
@@ -51,6 +51,9 @@ class TestCase:
     def gdf2_gdf2_overlay_difference(self):
         return gpd.overlay(self.gdf2, self.gdf2, how="difference", keep_geom_type=True)
 
+    def gdf2_gdf1_overlay_difference(self):
+        return gpd.overlay(self.gdf2, self.gdf1, how="difference", keep_geom_type=True)
+
 
 @dataclasses.dataclass(frozen=True)
 class ExecutionAndTimingTest:
@@ -68,6 +71,7 @@ class ExecutionAndTimingTest:
             "gdf1_gdf1_overlay_difference": test_case.gdf1_gdf1_overlay_difference,
             "gdf1_gdf2_overlay_difference": test_case.gdf1_gdf2_overlay_difference,
             "gdf2_gdf2_overlay_difference": test_case.gdf2_gdf2_overlay_difference,
+            "gdf2_gdf1_overlay_difference": test_case.gdf2_gdf1_overlay_difference,
         }
         result = {"shapely_version": shapely.__version__, "data_generator": str(self.data_generator), "seed": seed}
         for name, func in funcs.items():

@@ -10,11 +10,14 @@ app = typer.Typer()
 
 
 class GeneratorType(str, enum.Enum):
-    targets = "targets"
+    random_center_targets = "random_center_targets"
+    random_radius_targets = "random_radius_targets"
 
     def build(self) -> shapes.RandomPolyGenerator:
-        if self == self.targets:
-            return shapes.RandomTargetsGenerator()
+        if self == self.random_center_targets:
+            return shapes.RandomCenterTargetsGenerator()
+        if self == self.random_radius_targets:
+            return shapes.RandomRadiusTargetsGenerator()
         raise NotImplementedError(f"Invalid {self = }")
 
 
