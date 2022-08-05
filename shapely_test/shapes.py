@@ -9,6 +9,7 @@ import uuid
 
 import geopandas as gpd
 import numpy as np
+import shapely
 import shapely.affinity
 import shapely.geometry
 import shapely.ops
@@ -25,10 +26,24 @@ def strings_to_uuid_v5(*args: str) -> str:
     return str(uuid.uuid5(_NAMESPACE_UUID, "_".join(args)))
 
 
+if hasattr(shapely, "set_precision"):
+
+    def snap_to_integers(poly: GenericPoly) -> GenericPoly:
+        """Round coordinates to the nearest int, with .5 rounded towards +inf"""
+        return shapely.set_precision(poly, 1)
+
+else:
+
+    def snap_to_integers(poly: GenericPoly) -> GenericPoly:
+        """Round coordinates to the nearest int, with .5 rounded towards +inf"""
+        return shapely.ops.transform(lambda x, y: tuple(np.floor(np.asarray((x, y)) + 0.5)), poly)
+
+
 @dataclasses.dataclass(frozen=True)
 class RandomPolyGenerator(abc.ABC):
     top_left_tile: Tuple[int, int] = (18807, 23776)  # chosen only so that it can be loaded into QGIS easily (@z=16)
-    px_per_tile: int = 1024
+    px_per_tile: int = 256 * 2 ** (21 - 16)  # This gives the number of z21 pixels in a single z16 tile
+    use_cached_data_if_it_exists: bool = False
 
     @classmethod
     @abc.abstractmethod
@@ -52,14 +67,18 @@ class RandomPolyGenerator(abc.ABC):
     def __call__(self, seed: int) -> gpd.GeoDataFrame:
         """Use this method to fill the unit square with polygons and their associated 'confidence'"""
         outpath = Path(__file__).resolve().parent / f"cache/{self.name()}-{seed}.geojson.gz"
-        if outpath.exists():
-            return self.load_geojson_gz(outpath)
+        if outpath.exists() and self.use_cached_data_if_it_exists:
+            gdf = self.load_geojson_gz(outpath)
+            # set the precision in shapely v2
+            gdf["geometry"] = gdf["geometry"].apply(snap_to_integers)
+            return gdf
         np.random.seed(seed)
         polys = self._fill_unit_square()
         polys = self._clip_to_unit_square(polys)
         polys = self._scale(polys)
         polys = self._translate(polys)
         polys = self._clip_by_confidence(polys)
+        polys = self._snap_to_integers(polys)
         gdf = gpd.GeoDataFrame(polys, columns=["uid", "confidence", "geometry"], geometry="geometry")
         self.to_geojson_gz(gdf, outpath)
         return gdf
@@ -83,6 +102,9 @@ class RandomPolyGenerator(abc.ABC):
             (confidence, shapely.affinity.translate(geom, xoff=self.top_left_tile[0], yoff=self.top_left_tile[1]))
             for confidence, geom in polygons
         ]
+
+    def _snap_to_integers(self, polygons: List[Tuple[float, GenericPoly]]) -> List[Tuple[float, GenericPoly]]:
+        return [(uid, confidence, snap_to_integers(geom)) for uid, confidence, geom in polygons]
 
     def _clip_by_confidence(self, polygons: List[Tuple[float, GenericPoly]]) -> List[Tuple[str, float, GenericPoly]]:
         """Clips the polygons based on confidence ordering, also creates 'row' UIDs for each polygon"""

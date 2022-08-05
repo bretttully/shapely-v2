@@ -1,5 +1,6 @@
 import enum
 import os
+from pprint import pprint
 
 import typer
 
@@ -34,3 +35,13 @@ def run_eatt(
     assert n_procs > 0 and n_tests > 0
     df = run_execution_and_timing_test(generator.build(), n_procs, n_tests)
     df.to_csv(f"test-{generator.value}-{name}.csv.gz", index=False, compression="gzip")
+
+    time_cols = [c for c in df.columns if c.startswith("time_")]
+    print("*" * 80)
+    print("Timing")
+    print(df[time_cols].describe().T)
+
+    err_cols = [c for c in df.columns if c.startswith("err_")]
+    print("*" * 80)
+    print("Errors")
+    pprint({c: df[c].dropna().unique().tolist() for c in err_cols})

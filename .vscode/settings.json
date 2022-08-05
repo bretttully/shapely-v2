@@ -1,5 +1,6 @@
 {
     "python.defaultInterpreterPath": "~/mambaforge/envs/shapely-v2/bin/python",
+    "notebook.output.textLineLimit": 1000,
     "editor.rulers": [
         120
     ],
