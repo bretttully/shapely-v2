@@ -2,7 +2,6 @@ import concurrent.futures
 import dataclasses
 import os
 import time
-from typing import Dict
 
 import geopandas as gpd
 import pandas as pd
