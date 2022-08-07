@@ -15,6 +15,8 @@ import shapely.geometry
 import shapely.ops
 from shapely.validation import explain_validity
 
+from ._compat import SHAPELY_GE_20
+
 GenericPoly = Union[shapely.geometry.Polygon, shapely.geometry.MultiPolygon]
 
 
@@ -26,17 +28,43 @@ def strings_to_uuid_v5(*args: str) -> str:
     return str(uuid.uuid5(_NAMESPACE_UUID, "_".join(args)))
 
 
-if hasattr(shapely, "set_precision"):
+def clip_to_unit_square(gdf: gpd.GeoDataFrame, inplace=True) -> gpd.GeoDataFrame:
+    bbox = shapely.geometry.box(0, 0, 1, 1)
+    if SHAPELY_GE_20:
+        new_geoms = shapely.intersection(gdf.geometry, bbox)
+    else:
+        new_geoms = gdf.geometry.apply(lambda g: g.intersection(bbox))
+    return gdf.set_geometry(new_geoms, inplace=inplace)
 
-    def snap_to_integers(poly: GenericPoly) -> GenericPoly:
-        """Round coordinates to the nearest int, with .5 rounded towards +inf"""
-        return shapely.set_precision(poly, 1)
 
-else:
+def scale(gdf: gpd.GeoDataFrame, xfact: float, yfact: float, inplace=True) -> gpd.GeoDataFrame:
+    if SHAPELY_GE_20:
+        new_geoms = shapely.transform(gdf.geometry, lambda x: x * [xfact, yfact])
+    else:
+        new_geoms = gdf.geometry.apply(lambda g: shapely.affinity.scale(g, xfact, yfact, origin=(0, 0)))
+    return gdf.set_geometry(new_geoms, inplace=inplace)
 
-    def snap_to_integers(poly: GenericPoly) -> GenericPoly:
-        """Round coordinates to the nearest int, with .5 rounded towards +inf"""
-        return shapely.ops.transform(lambda x, y: tuple(np.floor(np.asarray((x, y)) + 0.5)), poly)
+
+def translate(gdf: gpd.GeoDataFrame, xoff: float, yoff: float, inplace=True) -> gpd.GeoDataFrame:
+    if SHAPELY_GE_20:
+        new_geoms = shapely.transform(gdf.geometry, lambda x: x + [xoff, yoff])
+    else:
+        new_geoms = gdf.geometry.apply(lambda g: shapely.affinity.translate(g, xoff, yoff))
+    return gdf.set_geometry(new_geoms, inplace=inplace)
+
+
+def snap_to_integers(gdf: gpd.GeoDataFrame, inplace=True) -> gpd.GeoDataFrame:
+    """Round coordinates to the nearest int, with .5 rounded towards +inf"""
+    if SHAPELY_GE_20:
+        new_geoms = shapely.set_precision(gdf.geometry, 1)
+    else:
+        new_geoms = gdf.geometry.apply(snap_geom_to_integers)
+    return gdf.set_geometry(new_geoms, inplace=inplace)
+
+
+def snap_geom_to_integers(geom: GenericPoly) -> GenericPoly:
+    """Round coordinates to the nearest int, with .5 rounded towards +inf"""
+    return shapely.ops.transform(lambda x, y: tuple(np.floor(np.asarray((x, y)) + 0.5)), geom)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -44,6 +72,7 @@ class RandomPolyGenerator(abc.ABC):
     top_left_tile: Tuple[int, int] = (18807, 23776)  # chosen only so that it can be loaded into QGIS easily (@z=16)
     px_per_tile: int = 256 * 2 ** (21 - 16)  # This gives the number of z21 pixels in a single z16 tile
     use_cached_data_if_it_exists: bool = False
+    snap_to_integers: bool = True
 
     @classmethod
     @abc.abstractmethod
@@ -70,41 +99,28 @@ class RandomPolyGenerator(abc.ABC):
         if outpath.exists() and self.use_cached_data_if_it_exists:
             gdf = self.load_geojson_gz(outpath)
             # set the precision in shapely v2
-            gdf["geometry"] = gdf["geometry"].apply(snap_to_integers)
+            if SHAPELY_GE_20:
+                if self.snap_to_integers:
+                    snap_to_integers(gdf)
             return gdf
         np.random.seed(seed)
+
         polys = self._fill_unit_square()
-        polys = self._clip_to_unit_square(polys)
-        polys = self._scale(polys)
-        polys = self._translate(polys)
         polys = self._clip_by_confidence(polys)
-        polys = self._snap_to_integers(polys)
         gdf = gpd.GeoDataFrame(polys, columns=["uid", "confidence", "geometry"], geometry="geometry")
+
+        clip_to_unit_square(gdf)
+        scale(gdf, xfact=self.px_per_tile, yfact=self.px_per_tile)
+        translate(gdf, xoff=self.top_left_tile[0], yoff=self.top_left_tile[1])
+        if self.snap_to_integers:
+            snap_to_integers(gdf)
+
         self.to_geojson_gz(gdf, outpath)
         return gdf
 
     @abc.abstractmethod
     def _fill_unit_square(self) -> List[Tuple[float, GenericPoly]]:
         """Use this method to fill the unit square with polygons and their associated 'confidence'"""
-
-    def _clip_to_unit_square(self, polygons: List[Tuple[float, GenericPoly]]) -> List[Tuple[float, GenericPoly]]:
-        bbox = shapely.geometry.box(0, 0, 1, 1)
-        return [(confidence, geom.intersection(bbox)) for confidence, geom in polygons]
-
-    def _scale(self, polygons: List[Tuple[float, GenericPoly]]) -> List[Tuple[float, GenericPoly]]:
-        return [
-            (confidence, shapely.affinity.scale(geom, xfact=self.px_per_tile, yfact=self.px_per_tile, origin=(0, 0)))
-            for confidence, geom in polygons
-        ]
-
-    def _translate(self, polygons: List[Tuple[float, GenericPoly]]) -> List[Tuple[float, GenericPoly]]:
-        return [
-            (confidence, shapely.affinity.translate(geom, xoff=self.top_left_tile[0], yoff=self.top_left_tile[1]))
-            for confidence, geom in polygons
-        ]
-
-    def _snap_to_integers(self, polygons: List[Tuple[str, float, GenericPoly]]) -> List[Tuple[str, float, GenericPoly]]:
-        return [(uid, confidence, snap_to_integers(geom)) for uid, confidence, geom in polygons]
 
     def _clip_by_confidence(self, polygons: List[Tuple[float, GenericPoly]]) -> List[Tuple[str, float, GenericPoly]]:
         """Clips the polygons based on confidence ordering, also creates 'row' UIDs for each polygon"""
